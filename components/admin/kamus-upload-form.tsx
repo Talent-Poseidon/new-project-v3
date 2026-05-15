@@ -60,33 +60,26 @@ export function KamusUploadForm({ mode = "upload" }: { mode?: "upload" | "previe
 
     const endpoint = mode === "preview" ? "/api/kamus/preview" : "/api/kamus/upload";
 
+    const progressTimer = setInterval(() => {
+      setProgress((p) => (p < 90 ? p + 5 : p));
+    }, 150);
+
     try {
       const formData = new FormData();
       formData.append("file", file);
 
-      const xhr = new XMLHttpRequest();
-      const promise = new Promise<{ status: number; body: string }>(
-        (resolve, reject) => {
-          xhr.upload.addEventListener("progress", (evt) => {
-            if (evt.lengthComputable) {
-              const percent = Math.round((evt.loaded / evt.total) * 80) + 10;
-              setProgress(percent);
-            }
-          });
-          xhr.addEventListener("load", () => {
-            setProgress(100);
-            resolve({ status: xhr.status, body: xhr.responseText });
-          });
-          xhr.addEventListener("error", () => reject(new Error("Network error")));
-          xhr.open("POST", endpoint);
-          xhr.send(formData);
-        }
-      );
+      const res = await fetch(endpoint, {
+        method: "POST",
+        body: formData,
+      });
 
-      const result = await promise;
-      const body = result.body ? JSON.parse(result.body) : {};
+      clearInterval(progressTimer);
+      setProgress(100);
 
-      if (result.status >= 200 && result.status < 300) {
+      const text = await res.text();
+      const body = text ? JSON.parse(text) : {};
+
+      if (res.ok) {
         if (mode === "preview") {
           setPreview(body);
         } else {
@@ -98,9 +91,10 @@ export function KamusUploadForm({ mode = "upload" }: { mode?: "upload" | "previe
         setErrors(body.errors);
         setErrorMessage(body.error || "Validation failed");
       } else {
-        setErrorMessage(body.error || `Request failed (${result.status})`);
+        setErrorMessage(body.error || `Request failed (${res.status})`);
       }
     } catch (err) {
+      clearInterval(progressTimer);
       setErrorMessage(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
