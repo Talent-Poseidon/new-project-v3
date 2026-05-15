@@ -60,3 +60,74 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
+
+// Master Data: Kamus (Dictionary of Potensi & Kompetensi)
+model KamusItem {
+  id                   String   @id @default(cuid())
+  code                 String   @unique
+  name                 String
+  type                 String   // "potensi" | "kompetensi"
+  description          String   @db.Text
+  behavioralIndicators String   @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  createdBy            String?
+  updatedBy            String?
+
+  standarJabatanRefs StandarJabatanKamus[]
+  scenarioRefs       ScenarioKamus[]
+}
+
+model KamusEvent {
+  id        String   @id @default(cuid())
+  type      String   // "Kamus Submitted"
+  payload   String   @db.Text
+  createdAt DateTime @default(now())
+  createdBy String?
+}
+
+// Placeholder models for downstream aggregates (used to enforce
+// "cannot delete used Kamus" rule). Kept minimal — full setup of
+// Standar Jabatan and Scenario lives in their own epics.
+model StandarJabatan {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  level     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  kamusRefs StandarJabatanKamus[]
+}
+
+model StandarJabatanKamus {
+  id               String @id @default(cuid())
+  standarJabatanId String
+  kamusItemId      String
+  expectedLevel    Int    @default(1)
+
+  standarJabatan StandarJabatan @relation(fields: [standarJabatanId], references: [id], onDelete: Cascade)
+  kamusItem      KamusItem      @relation(fields: [kamusItemId], references: [id])
+
+  @@unique([standarJabatanId, kamusItemId])
+}
+
+model Scenario {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  type      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  kamusRefs ScenarioKamus[]
+}
+
+model ScenarioKamus {
+  id          String @id @default(cuid())
+  scenarioId  String
+  kamusItemId String
+
+  scenario  Scenario  @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  kamusItem KamusItem @relation(fields: [kamusItemId], references: [id])
+
+  @@unique([scenarioId, kamusItemId])
+}
